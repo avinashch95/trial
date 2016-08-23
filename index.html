@@ -1,8 +1,199 @@
+
+<!DOCTYPE HTML>
 <html>
 	<head>
-		<meta http-equiv="refresh" content="0; url=update_keys.php" >
+		<title>Encryptify</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta charset="utf-8">
+		<script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.4.8/angular.min.js"></script>
+		<!-- Latest compiled and minified CSS -->
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
 
+		<!-- Optional theme -->
+		<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+		<script type="text/javascript" src="https://code.jquery.com/jquery-3.1.0.slim.min.js"></script>
+
+		<!-- Latest compiled and minified JavaScript -->
+		<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+
+		<script type="text/javascript" src="https://42157fdf.ngrok.io/enc_server/js/forge.min.js"></script>
+
+		<script>
+			angular.module('encryptifyApp',[]).controller('encryptifyController',function($scope,$http){
+				var encodedParam=window.location.search.substring(1);
+				decodedParam=decodeURIComponent(encodedParam);
+				urlMap={};
+				var arr=decodedParam.split("&");
+				for(i=0;i<arr.length;i++){
+					keyValuePair=arr[i].split("=");
+					urlMap[keyValuePair[0]]=keyValuePair[1];
+				}
+				flockEvent=JSON.parse(urlMap["flockEvent"]);
+				console.log(urlMap);
+				console.log(flockEvent);
+				$scope.receipient=flockEvent.chatName;
+				$scope.message="";
+				$scope.passphrase="";
+				$scope.isAuth=false;
+				$scope.privateKey=null;
+				privateKeyHeader="-----BEGIN RSA PRIVATE KEY-----";
+				privateKeyFooter="-----END RSA PRIVATE KEY-----";
+				publicKeyHeader="-----BEGIN PUBLIC KEY-----";
+				publicKeyFooter="-----END PUBLIC KEY-----";
+				$scope.privateKeyCheck=function(){
+					console.log("Cookie:"+document.cookie);
+					if(document.cookie.search("privatekey="))
+						return false;
+					return true;
+				}
+				$scope.openEncryptionManager=function(){
+					$scope.encrMsg=false;
+					$scope.keyMgr=true;
+					$scope.decrMsg=false;
+				}
+				$scope.openMessageSender=function(){
+					if(!$scope.privateKeyCheck()){
+						$scope.openEncryptionManager();
+					}
+					else{
+						$scope.encrMsg=true;
+						$scope.keyMgr=false;
+						$scope.decrMsg=false;
+					}
+				};
+				$scope.openDecryptPanel=function(){
+					if(!$scope.privateKeyCheck()){
+						$scope.openEncryptionManager();
+					}
+					else{
+						$scope.encrMsg=false;
+						$scope.keyMgr=false;
+						$scope.decrMsg=true;
+					}
+				};
+				var genKeyPair=function(){
+					var pki=forge.pki;
+					var rsa=pki.rsa;
+					keyPair=rsa.generateKeyPair({bits:2048,e:0x10001});
+					var privatekey=pki.privateKeyToPem(keyPair.privateKey);
+					var publickey=pki.publicKeyToPem(keyPair.publicKey);
+					console.log(publickey);
+					console.log(privatekey);
+					privatekey=forge.util.encode64(privatekey);
+					publickey=forge.util.encode64(publickey);
+					/*privatekey=privatekey.replace(privateKeyHeader,"")
+								.replace(privateKeyFooter,"").trim();*/
+					/*publickey=publickey.replace(publicKeyHeader,"")
+								.replace(publicKeyFooter,"");*/
+					keyPair={
+						publicKey:publickey,
+						privateKey:privatekey
+					};
+					console.log(keyPair);
+					/*	privatekey=pki.privateKeyFromPem(privateKeyHeader+privatekey+privateKeyFooter);
+						publickey=pki.publicKeyFromPem(publicKeyHeader+publickey+publicKeyFooter);*/
+					return keyPair;
+				};
+				$scope.updateKeyPair=function(){
+					if($scope.passphrase==null||$scope.passphrase==""){
+						console.log("passphrase is empty");
+						return;
+					}
+					keyPair=genKeyPair();
+					console.log(keyPair);
+					req={
+						method: 'POST',
+						url: 'https://42157fdf.ngrok.io/enc_server/service.php',
+						headers:{
+							'Content-Type':'application/x-www-form-urlencoded'
+						},
+						data:'uid='+flockEvent.userId+'&'+
+							'submitKey=true&'+
+							'pubKey='+keyPair.publicKey
+					};
+					$http(req).then(function(){
+						document.cookie="privatekey=;max-age=0";
+						document.cookie="privatekey="+keyPair.privateKey+";max-age=30000000;";
+						var x=document.cookie;
+						console.log(x);
+					},function(){
+						console.log("Cookie setting failed");
+					});
+				};
+				var encryptMessage=function(msg,publicKey){
+					var pki=forge.pki;
+					publicKeyForge=pki.publicKeyFromPem(forge.util.decode64(publicKey));
+					bytes=[];
+					for(i=0;i<msg.length;i++){
+						bytes.push(msg.charCodeAt(i));
+					}
+					console.log(bytes);
+					encr1=publicKeyForge.encrypt(bytes);
+					console.log(encr1);
+					encrMsg=forge.util.encode64(encr1);
+					console.log(encrMsg);
+					return encrMsg;
+				}
+				$scope.performDecryption=function(){
+					privateKey=document.cookie.substring(11);
+					privateKeyForge=forge.pki.privateKeyFromPem(forge.util.decode64(privateKey));
+					console.log(forge.util.decode64($scope.encrMsg));
+					bytes=privateKeyForge.decrypt(forge.util.decode64($scope.encrMsg));
+					$scope.decrMsg=String.fromCharCode(bytes);
+				};
+				$scope.sendEncrMsg=function(){
+					var sender=$scope.receipient;
+					var mesg=$scope.message;
+					var req={
+						method: 'GET',
+						url: 'https://42157fdf.ngrok.io/enc_server/pub_key.php?uid='+flockEvent.chat,
+					};
+					$http(req).then(function(resp){
+						recpPublicKey=resp.data.pub_key;
+						ajax=new XMLHttpRequest();
+						ajax.open('POST','https://42157fdf.ngrok.io/enc_server/send_msg.php',false);
+						ajax.setRequestHeader("Content-Type","application/x-www-form-urlencoded");
+						ajax.send('uid='+flockEvent.userId+'&message={"message":{"to":"'+flockEvent.chat+'","text":"'+encryptMessage(mesg,recpPublicKey)+'"}}');
+					},function(){
+					});
+				}
+				$scope.openMessageSender();
+			});
+		</script>
 	</head>
-	<body><h1>HELLO</h1>></body>>
+	<body ng-app="encryptifyApp" ng-controller="encryptifyController">
+		<button class="btn-info" ng-click="openMessageSender()">Send Message with Encryption</button>
+		<button class="btn-info" ng-click="openEncryptionManager()">Encryption Manager</button>
+		<button class="btn-info" ng-click="openDecryptPanel()">Decrypt a Message</button>
+		<div class="row well" ng-show="encrMsg">
+			<div class="input-group container-fluid col-lg-8">
+				<label for="receipient">Receipient:</label>
+				<input type="text" class="form-control" ng-model="receipient" style="margin-bottom: 30px"/>
+			</div>
+			<div class="input-group container-fluid col-lg-8">
+				<label for="message">Message:</label>
+				<textarea class="form-control" rows=20 ng-model="message" style="margin-bottom: 30px"></textarea>
+			</div>
+			<button class="btn-info" ng-click="sendEncrMsg()">Submit</button>
+		</div>
+		<div class="row well" ng-show="keyMgr">
+			<div class="input-group container-fluid col-lg-8">
+				<label for="passphrase">Enter passphrase:</label>
+				<input type="password" class="form-control" ng-model="passphrase" style="margin-bottom: 30px"/>
+			</div>
+			<button class="btn-info container-fluid" ng-click='updateKeyPair()'>Update Keys</button>
+		</div>
+		<div class="row well" ng-show="decrMsg">
+			<div class="input-group container-fluid col-lg-8">
+				<label for="receipient">Encrypted Message:</label>
+				<textarea type="text" class="form-control" ng-model="encrMsg" style="margin-bottom: 30px"/>
+			</div>
+			<div class="input-group container-fluid col-lg-8">
+				<label for="message">Decrypted Message:</label>
+				<textarea class="form-control" rows=20 ng-model="decrMsg" style="margin-bottom: 30px"></textarea>
+			</div>
+			<button class="btn-info" ng-click="performDecryption()">Submit</button>
+		</div>
+	</body>
 </html>
-		

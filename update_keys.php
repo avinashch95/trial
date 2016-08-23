@@ -110,7 +110,7 @@ session_start();
    	$eid = $_POST['e_id'];
 	$pvtKey = $_POST['pvtKey'];
    	$pubKey = $_POST['pubKey'];
-	$otp = md5($eid+$pubKey);
+	$otp = rand(100000,999999);
 	$name = $_POST['name'];
 	
 	if(!preg_match("/^[A-Za-z ]+$/",$name))
@@ -130,7 +130,7 @@ session_start();
 	   $_SESSION['name'] = $name;
 	   $_SESSION['otp'] = $otp;
 	   include "send_mail.php";
-	   header('refresh:5;url=verify_otp.php');
+	   header('refresh:1;url=verify_otp.php');
    }
 	   
    }

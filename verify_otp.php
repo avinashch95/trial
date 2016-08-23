@@ -96,6 +96,7 @@ session_start();
    }
    else
    {
+	   
 	   $query1 = mysqli_query($link,"insert into pub_keys (e_id,pub_key,name) values('".$_SESSION['e_id']."','".$_SESSION['pubKey']."','".$_SESSION['name']."')");
        $msg = "Keys Updated";
        header('refresh:1;url=update_keys.php');

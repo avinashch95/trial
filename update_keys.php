@@ -130,7 +130,7 @@ session_start();
 	   $_SESSION['name'] = $name;
 	   $_SESSION['otp'] = $otp;
 	   include "send_mail.php";
-	   header('refresh:1;url=verify_otp.php');
+	   header('refresh:5;url=verify_otp.php');
    }
 	   
    }

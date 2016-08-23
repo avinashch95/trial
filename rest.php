@@ -11,9 +11,11 @@ $input = json_decode(file_get_contents('php://input'),true);
 mysqli_set_charset($link,'utf8');
  
 // retrieve the table and key from the path
-$table = "pub_keys";
-$key = array_shift($request)+0;
- 
+$table = preg_replace('/[^a-z0-9_]+/i','',array_shift($request));
+//echo array_shift($request);
+$key = array_shift($request);
+
+
 // escape the columns and values from the input object
 $columns = preg_replace('/[^a-z0-9_]+/i','',array_keys($input));
 $values = array_map(function ($value) use ($link) {
@@ -29,11 +31,8 @@ for ($i=0;$i<count($columns);$i++) {
 }
  
 // create SQL based on HTTP method
-$sql = "select * from `$table`".($key?" WHERE id=$key":''); break;
-
- 
 // excecute SQL statement
-$result = mysqli_query($link,$sql);
+ $result = mysqli_query($link,"select pub_key from pub_keys WHERE e_id='".$key."' ");
  
 // die if SQL statement failed
 if (!$result) {
